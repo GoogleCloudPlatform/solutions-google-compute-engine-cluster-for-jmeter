@@ -1,0 +1,42 @@
+# Copyright 2013 Google Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+--- apache-jmeter-2.8/bin/jmeter.properties	2012-10-02 13:29:39.000000000 -0700
++++ jmeter-config/client/jmeter.properties	2013-05-19 20:16:27.000000000 -0700
+@@ -156,7 +156,7 @@
+ #---------------------------------------------------------------------------
+
+ # Remote Hosts - comma delimited
+-remote_hosts=127.0.0.1
++remote_hosts=127.0.0.1:24000
+ #remote_hosts=localhost:1099,localhost:2010
+
+ # RMI port to be used by the server (must start rmiregistry with same port)
+@@ -178,7 +178,7 @@
+
+ # Parameter that controls the RMI port used by the RemoteSampleListenerImpl
+ # Default value is 0 which means port is randomly assigned
+-#client.rmi.localport=0
++client.rmi.localport=25000
+
+ # To change the default port (1099) used to access the server:
+ #server.rmi.port=1234
+@@ -573,7 +573,7 @@
+ #mode=Standard
+ #mode=Batch
+ #mode=Hold
+-#mode=Statistical
++mode=Statistical
+ #Set to true to key statistical samples on threadName rather than threadGroup
+ #key_on_threadname=false
+ #mode=Stripped
