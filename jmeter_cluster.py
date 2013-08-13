@@ -45,7 +45,7 @@ CLIENT_SECRET = '{{{{ client_secret }}}}'
 CLOUD_STORAGE = 'gs://{{{{ cloud_storage }}}}'
 DEFAULT_PROJECT = '{{{{ project_id }}}}'
 DEFAULT_ZONE = 'us-central1-a'
-DEFAULT_IMAGE = 'projects/debian-cloud/global/images/debian-7-wheezy-v20130515'
+DEFAULT_IMAGE = 'projects/debian-cloud/global/images/debian-7-wheezy-v20130723'
 DEFAULT_MACHINE_TYPE = 'n1-standard-2'
 
 GCE_STATUS_CHECK_INTERVAL = 3
@@ -274,6 +274,9 @@ class JMeterExecuter(object):
         '--prefix', default='%s-jmeter' % os.environ['USER'],
         help='Name prefix of Google Compute Engine instances. '
         '(default "$USER-jmeter")')
+    subparser.add_argument(
+        '--zone',
+        help='Zone name where JMeter server cluster is located.')
 
   def _AddStartSubcommand(self):
     parser_start = self.subparsers.add_parser(
@@ -283,9 +286,6 @@ class JMeterExecuter(object):
         'size', default=3, type=int, nargs='?',
         help='JMeter server cluster size. (default 3)')
     self._AddGceWideParams(parser_start)
-    parser_start.add_argument(
-        '--zone',
-        help='Zone name where to add JMeter server cluster.')
     parser_start.add_argument(
         '--image',
         help='Machine image of Google Compute Engine instance.')

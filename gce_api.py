@@ -25,16 +25,22 @@ import apiclient
 import apiclient.discovery
 import httplib2
 import oauth2client
-from oauth2client.client import OAuth2WebServerFlow
 import oauth2client.file
 import oauth2client.tools
+
+
+class ResourceZoning(object):
+  """Constants to indicate which zone type the resource belongs to."""
+  NONE = 0
+  GLOBAL = 1
+  ZONE = 2
 
 
 class GceApi(object):
   """Google Client API wrapper for Google Compute Engine."""
 
   COMPUTE_ENGINE_SCOPE = 'https://www.googleapis.com/auth/compute'
-  COMPUTE_ENGINE_API_VERSION = 'v1beta14'
+  COMPUTE_ENGINE_API_VERSION = 'v1beta15'
 
   def __init__(self, name, client_id, client_secret, project, zone):
     """Constructor.
@@ -69,8 +75,8 @@ class GceApi(object):
 
     if not credentials or credentials.invalid:
       # If local credentials are not valid, do OAuth2 dance.
-      flow = OAuth2WebServerFlow(self._client_id, self._client_secret,
-                                 self.COMPUTE_ENGINE_SCOPE)
+      flow = oauth2client.client.OAuth2WebServerFlow(
+          self._client_id, self._client_secret, self.COMPUTE_ENGINE_SCOPE)
       credentials = oauth2client.tools.run(flow, storage)
 
     # Set up http with the credentials.
@@ -85,27 +91,25 @@ class GceApi(object):
         cls.COMPUTE_ENGINE_API_VERSION, path)
 
   def _ResourceUrl(self, resource_type, resource_name,
-                   global_resource=False, project_google=False):
+                   zoning=ResourceZoning.ZONE):
     """Creates URL to indicate Google Compute Engine resource.
 
     Args:
       resource_type: Resource type.
       resource_name: Resource name.
-      global_resource: Whether it's global resource.
-      project_google: Use 'google' project.
+      zoning: Which zone type the resource belongs to.
     Returns:
       URL in string to represent the resource.
     """
-    project_name = self._project
-    if project_google:
-      project_name = 'google'
-
-    if global_resource:
-      resource_path = 'projects/%s/global/%s/%s' % (
-          project_name, resource_type, resource_name)
-    else:
+    if zoning == ResourceZoning.NONE:
       resource_path = 'projects/%s/%s/%s' % (
-          project_name, resource_type, resource_name)
+          self._project, resource_type, resource_name)
+    elif zoning == ResourceZoning.GLOBAL:
+      resource_path = 'projects/%s/global/%s/%s' % (
+          self._project, resource_type, resource_name)
+    else:
+      resource_path = 'projects/%s/zones/%s/%s/%s' % (
+          self._project, self._zone, resource_type, resource_name)
 
     return self._ResourceUrlFromPath(resource_path)
 
@@ -169,7 +173,7 @@ class GceApi(object):
       instance_name: Name of the new instance.
       machine_type: Machine type.  e.g. 'n1-standard-2'
       image: Machine image name.
-          e.g. 'projects/debian-cloud/global/images/debian-7-wheezy-v20130515'
+          e.g. 'projects/debian-cloud/global/images/debian-7-wheezy-v20130723'
       startup_script: Content of start up script to run on the new instance.
       service_accounts: List of scope URLs to give to the instance with
           the service account.
@@ -181,8 +185,9 @@ class GceApi(object):
     params = {
         'kind': 'compute#instance',
         'name': instance_name,
-        'zone': self._ResourceUrl('zones', self._zone),
-        'machineType': self._ResourceUrl('machineTypes', machine_type, True),
+        'zone': self._ResourceUrl('zones', self._zone,
+                                  zoning=ResourceZoning.NONE),
+        'machineType': self._ResourceUrl('machineTypes', machine_type),
         'image': self._ResourceUrlFromPath(image),
         'metadata': {
             'kind': 'compute#metadata',
@@ -203,7 +208,8 @@ class GceApi(object):
                         'name': 'External NAT',
                     }
                 ],
-                'network': self._ResourceUrl('networks', 'default', True)
+                'network': self._ResourceUrl('networks', 'default',
+                                             zoning=ResourceZoning.GLOBAL)
             },
         ],
         'serviceAccounts': [

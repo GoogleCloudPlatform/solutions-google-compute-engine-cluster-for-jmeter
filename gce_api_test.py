@@ -64,7 +64,8 @@ class GceApiTest(unittest.TestCase):
     mock_api = MagicMock(name='Google Client API')
 
     mock_storage_class = mock.patch('oauth2client.file.Storage').start()
-    mock_flow_class = mock.patch('gce_api.OAuth2WebServerFlow').start()
+    mock_flow_class = mock.patch(
+        'oauth2client.client.OAuth2WebServerFlow').start()
     mock.patch('oauth2client.tools.run',
                return_value=mock_new_credentials).start()
     mock.patch('apiclient.discovery.build', return_value=mock_api).start()
