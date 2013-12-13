@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
---- apache-jmeter-2.8/bin/jmeter.properties	2012-10-02 13:29:39.000000000 -0700
-+++ jmeter-config/client/jmeter.properties	2013-05-19 20:16:27.000000000 -0700
+diff -rU3 apache-jmeter-2.9/bin/jmeter.properties apache-jmeter-2.9-client/bin/jmeter.properties
+--- apache-jmeter-2.9/bin/jmeter.properties	2013-01-24 03:21:37.000000000 -0800
++++ apache-jmeter-2.9-client/bin/jmeter.properties	2013-11-20 13:41:00.000000000 -0800
 @@ -156,7 +156,7 @@
  #---------------------------------------------------------------------------
 
@@ -31,7 +32,7 @@
 
  # To change the default port (1099) used to access the server:
  #server.rmi.port=1234
-@@ -573,7 +573,7 @@
+@@ -582,7 +582,7 @@
  #mode=Standard
  #mode=Batch
  #mode=Hold

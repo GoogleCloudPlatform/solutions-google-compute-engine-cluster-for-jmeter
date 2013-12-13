@@ -24,6 +24,7 @@ in advance.
 
 
 import argparse
+import logging
 import os
 import os.path
 import re
@@ -31,8 +32,6 @@ import subprocess
 import sys
 import time
 
-import apiclient
-import apiclient.errors
 import oauth2client
 
 from gce_api import GceApi
@@ -45,7 +44,7 @@ CLIENT_SECRET = '{{{{ client_secret }}}}'
 CLOUD_STORAGE = 'gs://{{{{ cloud_storage }}}}'
 DEFAULT_PROJECT = '{{{{ project_id }}}}'
 DEFAULT_ZONE = 'us-central1-a'
-DEFAULT_IMAGE = 'projects/debian-cloud/global/images/debian-7-wheezy-v20130723'
+DEFAULT_IMAGE = 'projects/debian-cloud/global/images/debian-7-wheezy-v20131120'
 DEFAULT_MACHINE_TYPE = 'n1-standard-2'
 
 GCE_STATUS_CHECK_INTERVAL = 3
@@ -54,7 +53,7 @@ GCE_STATUS_CHECK_INTERVAL = 3
 class JMeterFiles(object):
   """Class to handle local files for JMeter client."""
 
-  CLIENT_DIR = 'apache-jmeter-2.8-client'
+  CLIENT_DIR = 'apache-jmeter-2.9-client'
   STARTUP_SCRIPT = ['startup.sh']
   CLIENT_CONFIG = [CLIENT_DIR, 'bin', 'jmeter.properties']
   CLIENT_JMETER = [CLIENT_DIR, 'bin', 'jmeter.sh']
@@ -126,20 +125,48 @@ class JMeterCluster(object):
     return '%s-%03d' % (self.params.prefix, index)
 
   def _WaitForAllInstancesRunning(self):
+    """Waits until all instances have status 'RUNNING'."""
     size = self.params.size
     while True:
-      print 'Checking instance status...'
+      logging.info('Checking instance status...')
       status_count = {}
       for index in xrange(size):
-        status = self._GetGceApi().GetInstance(
-            self._MakeInstanceName(index))['status']
+        instance_info = self._GetGceApi().GetInstance(
+            self._MakeInstanceName(index))
+        if instance_info:
+          status = instance_info['status']
+        else:
+          status = 'NOT YET CREATED'
         status_count[status] = status_count.get(status, 0) + 1
-      print 'Total instances: %d' % size
+      logging.info('Total instances: %d', size)
       for status, count in status_count.items():
-        print '  %s: %d' % (status, count)
-      print
+        logging.info('  %s: %d', status, count)
       if status_count.get('RUNNING', 0) == size:
         break
+      logging.info('Wait for instances RUNNING...')
+      time.sleep(GCE_STATUS_CHECK_INTERVAL)
+
+  def _WaitForAllInstancesSshReady(self):
+    """Waits until all instances are ready to SSH."""
+    size = self.params.size
+    while True:
+      ssh_ready = 0
+      for index in xrange(size):
+        instance_name = self._MakeInstanceName(index)
+        command = ('gcutil ssh --project=%s --zone=%s '
+                   '--ssh_arg "-o ConnectTimeout=10" '
+                   '--ssh_arg "-o StrictHostKeyChecking=no" '
+                   '%s exit') % (self.project, self.zone, instance_name)
+        logging.debug('SSH availability check command: %s', command)
+        if subprocess.call(command, shell=True):
+          # Non-zero return code indicates an error.
+          logging.info('SSH is not yet ready on %s', instance_name)
+        else:
+          ssh_ready += 1
+      logging.info('%d instances out of %d are ready for SSH', ssh_ready, size)
+      if ssh_ready == size:
+        break
+      logging.info('Wait for SSH to get ready on instances...')
       time.sleep(GCE_STATUS_CHECK_INTERVAL)
 
   def Start(self):
@@ -151,8 +178,8 @@ class JMeterCluster(object):
 
     for index in xrange(size):
       instance_name = self._MakeInstanceName(index)
-      print 'Starting instance: %s' % instance_name
-      self._GetGceApi().CreateInstance(
+      logging.info('Starting instance: %s', instance_name)
+      self._GetGceApi().CreateInstanceWithNewBootDisk(
           instance_name, self.machine_type, self.image,
           startup_script=startup_script,
           service_accounts=[
@@ -160,6 +187,7 @@ class JMeterCluster(object):
           metadata={'id': index})
 
     self._WaitForAllInstancesRunning()
+    self._WaitForAllInstancesSshReady()
     self.SetPortForward()
 
   def SetPortForward(self):
@@ -169,13 +197,14 @@ class JMeterCluster(object):
     server_list = []
     for index in xrange(self.params.size):
       instance_name = self._MakeInstanceName(index)
-      print 'Setting up port forwarding for: %s' % instance_name
+      logging.info('Setting up port forwarding for: %s', instance_name)
       server_port = 24000 + index
       server_rmi_port = 26000 + index
       client_rmi_port = 25000
       # Run "gcutil ssh" command to activate SSH port forwarding.
       command = [
           'gcutil', '--project', project, 'ssh',
+          '--ssh_arg', '-oStrictHostKeyChecking=no',
           '--ssh_arg', '-L%(server_port)d:127.0.0.1:%(server_port)d',
           '--ssh_arg', '-L%(server_rmi_port)d:127.0.0.1:%(server_rmi_port)d',
           '--ssh_arg', '-R%(client_rmi_port)d:127.0.0.1:%(client_rmi_port)d',
@@ -196,31 +225,48 @@ class JMeterCluster(object):
     JMeterFiles.RewriteConfig('(?<=^remote_hosts=).*',
                               ','.join(server_list))
 
-  def ShutDown(self):
-    """Shuts down JMeter server cluster."""
-    name_filter = 'name eq ^%s-.*' % self.params.prefix
+  @staticmethod
+  def _DeleteResource(filter_string, list_method, delete_method, get_method):
+    """Deletes Compute Engine resource that matches the filter.
+
+    Args:
+      filter_string: Filter string of the resource.
+      list_method: Method to list the resources.
+      delete_method: Method to delete the single resource.
+      get_method: Method to get the status of the single resource.
+    """
     while True:
-      instances = self._GetGceApi().ListInstances(name_filter)
-      instance_names = [i['name'] for i in instances]
-      if not instance_names:
+      list_of_resources = list_method(filter_string)
+      resource_names = [i['name'] for i in list_of_resources]
+      if not resource_names:
         break
-      print 'Delete instances:'
-      for name in instance_names:
-        print '  ' + name
-        self._GetGceApi().DeleteInstance(name)
+      for name in resource_names:
+        logging.info('  %s', name)
+        delete_method(name)
 
       for _ in xrange(10):
         still_alive = []
-        for name in instance_names:
-          try:
-            self._GetGceApi().GetInstance(name)
+        for name in resource_names:
+          if get_method(name):
             still_alive.append(name)
-          except apiclient.errors.HttpError:
-            print 'Instance deleted: %s' % name
+          else:
+            logging.info('Deletion complete: %s', name)
         if not still_alive:
           break
-        instance_names = still_alive
+        resource_names = still_alive
         time.sleep(GCE_STATUS_CHECK_INTERVAL)
+
+  def ShutDown(self):
+    """Shuts down JMeter server cluster."""
+    name_filter = 'name eq ^%s-.*' % self.params.prefix
+    logging.info('Delete instances:')
+    self._DeleteResource(
+        name_filter, self._GetGceApi().ListInstances,
+        self._GetGceApi().DeleteInstance, self._GetGceApi().GetInstance)
+    logging.info('Delete disks:')
+    self._DeleteResource(
+        name_filter, self._GetGceApi().ListDisks,
+        self._GetGceApi().DeleteDisk, self._GetGceApi().GetDisk)
 
 
 def Start(params):
@@ -279,6 +325,7 @@ class JMeterExecuter(object):
         help='Zone name where JMeter server cluster is located.')
 
   def _AddStartSubcommand(self):
+    """Add 'start' subcommand to argument parser."""
     parser_start = self.subparsers.add_parser(
         'start',
         help='Start JMeter server cluster.  Also sets port forwarding.')
@@ -295,6 +342,7 @@ class JMeterExecuter(object):
     parser_start.set_defaults(handler=Start)
 
   def _AddShutdownSubcommand(self):
+    """Add 'shutdown' subcommand to argument parser."""
     parser_shutdown = self.subparsers.add_parser(
         'shutdown',
         help='Tear down JMeter server cluster.')
@@ -302,6 +350,7 @@ class JMeterExecuter(object):
     parser_shutdown.set_defaults(handler=ShutDown)
 
   def _AddPortforwardSubcommand(self):
+    """Add 'portforward' subcommand to argument parser."""
     parser_portforward = self.subparsers.add_parser(
         'portforward',
         help='Set up JMeter SSH port forwarding.')
@@ -312,6 +361,7 @@ class JMeterExecuter(object):
     parser_portforward.set_defaults(handler=PortForward)
 
   def _AddClientSubcommand(self):
+    """Add 'client' subcommand to argument parser."""
     parser_client = self.subparsers.add_parser(
         'client',
         help='Start JMeter client.  Can take additional parameters passed to '
@@ -336,6 +386,9 @@ class JMeterExecuter(object):
 
 
 def main():
+  logging.basicConfig(
+      level=logging.INFO,
+      format='%(asctime)s [%(module)s:%(levelname)s] %(message)s')
   executer = JMeterExecuter()
   executer.ParseArgumentsAndExecute(sys.argv[1:])
 

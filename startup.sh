@@ -16,7 +16,7 @@
 cd /
 
 CLOUD_STORAGE=%s
-JMETER_DIR=apache-jmeter-2.8-server
+JMETER_DIR=apache-jmeter-*-server
 
 # Set up Open JDK
 mkdir -p jre

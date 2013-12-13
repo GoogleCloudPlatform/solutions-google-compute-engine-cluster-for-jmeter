@@ -29,13 +29,13 @@ This sample application is not an official Google product.
 Summary
 -------
 
-Apache JMeter is open source framework for load testing.  It's designed to
+Apache JMeter is an open source framework for load testing.  It's designed to
 apply load from distributed JMeter servers simultaneously.
 
-This sample application sets up a Google Compute Engine cluster and starts
-JMeter servers on them.  It can also start JMeter client on the local machine
-where the sample application is executed.  JMeter client controls JMeter
-servers, starting and stopping the load, and collecting statistical information
+The application sets up a Google Compute Engine cluster and starts the JMeter
+servers on them.  It can also start JMeter client on the local machine
+where the application is executed.  JMeter client controls JMeter servers,
+starting and stopping the load, and collecting statistical information
 from JMeter servers.
 
 The system (JMeter server cluster and JMeter client) works as a load testing
@@ -46,16 +46,15 @@ installed on Google Compute Engine, a Google App Engine application, or
 publicly accessible servers outside Google Cloud Platform.
 
 In order for the JMeter client to communicate with JMeter servers on Google
-Compute Engine instances, SSH tunnel must be set up properly.  The sample
-application automatically sets up SSH tunnels.  It also automatically
-configures JMeter client, so that the JMeter client can properly control
-JMeter servers.
+Compute Engine instances, SSH tunnels must be set up properly.  The application
+automatically sets up SSH tunnels.  It also automatically configures JMeter
+client, so that it can properly control JMeter servers.
 
 
 Prerequisites
 -------------
 
-This sample assumes Google Cloud Storage and Google Compute Engine services
+The application assumes Google Cloud Storage and Google Compute Engine services
 are enabled.
 
 To create a new project, go to the
@@ -64,14 +63,14 @@ To create a new project, go to the
 "Compute Engine" and turn on billing to enable Google Compute Engine
 on the new project.
 
-The sample requires sufficient Google Compute Engine instance and CPU quota
+The application requires sufficient Google Compute Engine instance and CPU quota
 to set up JMeter server cluster on Google Compute Engine.
-Note that the default instances used by the sample application have 2 CPUs each.
+Note that the default instances used by the application have 2 CPUs each.
 
-The sample requires [gcutil](https://developers.google.com/compute/docs/gcutil/)
+The application requires [gcutil](https://developers.google.com/compute/docs/gcutil/)
 command line tool.  In addition, setting up
 [gsutil](https://developers.google.com/storage/docs/gsutil)
-is also helpful to set up the sample, although gsutil is not a requirement.
+is also helpful to set up the application, although gsutil is not a requirement.
 
 ##### `gcutil` configuration
 
@@ -87,12 +86,12 @@ are started.  The following command
     gcutil getproject --project=<project ID> --cache_flag_values
 
 If this is the first time using `gcutil` for operation that requires SSH
-credential (such as "gcutil addinstance" or "gcutil ssh"), gcutil creates
-new SSH credential.  At that time, passphrase is asked.
-The **passphrase must be empty** for the sample to work properly.
-If SSH credential with passphrase already exists for gcutil, the sample
+credentials (such as "gcutil addinstance" or "gcutil ssh"), gcutil creates
+new SSH credentials.  At that time, passphrase is asked.
+The **passphrase must be empty** for the application to work properly.
+If SSH credentials with passphrase already exists for gcutil, the application
 fails to establish SSH forwarding.  In this case, remove existing credentials
-at `~/.ssh/google_compute_engine*` and re-create SSH credential.
+at `~/.ssh/google_compute_engine*` and re-create SSH credentials.
 
 
 Set-Up Instruction
@@ -100,26 +99,27 @@ Set-Up Instruction
 
 ### Download and set up Python libraries
 
-The following libraries are required by the sample, and here is the example of
-how to set up libraries in the sample application directory.
+The following libraries are required by the application, and here is an
+example of how to set up libraries in the application directory.  The commands
+below need to be executed from the top directory of the application.
 
 ##### Google Client API
 
 [Google Client API](http://code.google.com/p/google-api-python-client/)
 is library to access various Google's services via API.
 
-Download google-api-python-client-1.1.tar.gz from
+Download google-api-python-client-1.2.tar.gz from
 [download page](http://code.google.com/p/google-api-python-client/downloads/list)
 or by the following command.
 
-    curl -O http://google-api-python-client.googlecode.com/files/google-api-python-client-1.1.tar.gz
+    curl -O http://google-api-python-client.googlecode.com/files/google-api-python-client-1.2.tar.gz
 
 Set up the library in `compute_engine_cluster_for_jmeter` directory.
 
-    tar zxf google-api-python-client-1.1.tar.gz
-    ln -s google-api-python-client-1.1/apiclient .
-    ln -s google-api-python-client-1.1/oauth2client .
-    ln -s google-api-python-client-1.1/uritemplate .
+    tar zxf google-api-python-client-1.2.tar.gz
+    ln -s google-api-python-client-1.2/apiclient .
+    ln -s google-api-python-client-1.2/oauth2client .
+    ln -s google-api-python-client-1.2/uritemplate .
 
 ##### Httplib2
 
@@ -156,7 +156,7 @@ Set up the library in `compute_engine_cluster_for_jmeter` directory.
 
 [mock](https://pypi.python.org/pypi/mock) is mocking library for Python.
 It will be included in Python as standard package from Python 3.3.
-However, since this sample application uses Python 2.7, it needs to be set up.
+However, since the application uses Python 2.7, it needs to be set up.
 
 Download mock-1.0.1.tar.gz from
 [download page](https://pypi.python.org/pypi/mock#downloads).
@@ -174,7 +174,7 @@ Set up the library in `compute_engine_cluster_for_jmeter` directory.
 Create a Google Cloud Storage bucket, from which Google Compute Engine instance
 downloads required packages for set up JMeter server.
 
-This can be done by either:
+This can be done one of the following ways:
 
 * Using existing bucket.
 * Creating new bucket from Google Cloud Storage Web UI.  Go to
@@ -191,45 +191,44 @@ instances are started.
 ### Prepare JMeter packages
 
 Download
-[JMeter 2.8](http://archive.apache.org/dist/jmeter/binaries/apache-jmeter-2.8.tgz)
+[JMeter 2.9](http://archive.apache.org/dist/jmeter/binaries/apache-jmeter-2.9.tgz)
 from the link or by command line.
 
-    curl -O http://archive.apache.org/dist/jmeter/binaries/apache-jmeter-2.8.tgz
+    curl -O http://archive.apache.org/dist/jmeter/binaries/apache-jmeter-2.9.tgz
 
-In this sample application, 2 sets of JMeter packages are required,
-one for server and the other for client.  Server and client use the different
-configuration, and so a patch for each configuration file is provided in the
-downloaded package.
+In the application, 2 sets of JMeter packages are required, one for server and
+the other for client.  Server and client use different configurations, and
+so a patch for each configuration file is provided in the downloaded package.
 
 First, prepare client JMeter package.
 
-    tar zxf apache-jmeter-2.8.tgz
+    tar zxf apache-jmeter-2.9.tgz
     patch -p0 < jmeter.properties.client.patch
-    mv apache-jmeter-2.8 apache-jmeter-2.8-client
+    mv apache-jmeter-2.9 apache-jmeter-2.9-client
 
 Then, prepare the server package.  Archive JMeter server package to upload to
 Google Cloud Storage.
 
-    tar zxf apache-jmeter-2.8.tgz
+    tar zxf apache-jmeter-2.9.tgz
     patch -p0 < jmeter.properties.server.patch
-    mv apache-jmeter-2.8 apache-jmeter-2.8-server
-    tar zcf apache-jmeter-2.8-server.tar.gz apache-jmeter-2.8-server/
+    mv apache-jmeter-2.9 apache-jmeter-2.9-server
+    tar zcf apache-jmeter-2.9-server.tar.gz apache-jmeter-2.9-server/
 
 The server package must be uploaded to Google Cloud Storage, so that
 the Google Compute Engine instance can download and install in start-up script.
 This can be done by drag-and-drop to Google Cloud Storage Web UI, or by the
 following command.
 
-    gsutil cp apache-jmeter-2.8-server.tar.gz gs://<bucket name>/
+    gsutil cp apache-jmeter-2.9-server.tar.gz gs://<bucket name>/
 
 ### Download Open JDK Package
 
-The sample uses [Open JDK](http://openjdk.java.net/) as Java runtime
+The application uses [Open JDK](http://openjdk.java.net/) as Java runtime
 environment.  Open JDK Java Runtime Environment is distributed under
 [GNU Public License version 2](http://www.gnu.org/licenses/gpl-2.0.html).
 User must agree to the license to use Open JDK.  Note that OpenJDK has different
-licensing terms from this sample application, and user should make sure
-he/she reads and understands those terms.
+licensing terms from the application, and user should make sure to read
+and understand those terms.
 
 Download amd64 package of openjdk-6-jre-headless, and architecture-common
 package of openjdk-6-jre-lib from the following sites.
@@ -243,20 +242,21 @@ Upload .deb packages to the same Google Cloud Storage bucket.
 
 ### Create client ID and client secret
 
-Client ID and client secret are required by OAuth2 authorization
-to identify the sample application.  It is required in order for the
-application to access Google API (in this example, Google Compute Engine API)
-on behalf of the user.
+Client ID and client secret are required by OAuth2 authorization to identify
+the application.  It is required in order for the application to access a
+Google API (in this example, Google Compute Engine API) on behalf of the user.
 
-Client ID and client secret can be set up from
-[API Access](https://code.google.com/apis/console/#access)
-page of Google APIs Console.  Click "Create another client ID..." button
-to create client ID.
+Client ID and client secret can be set up from "Registered apps" under
+"APIs & auth" menu in the left pane of the project page of
+[Google Cloud Console](https://cloud.google.com/console).
+Click the red "REGISTER APP" button at the top to create client ID and
+client secret.
 
-Choose "Installed Application" as application type, and set application type
-to "Other".
+Type a name to distinguish the application, choose "Native" as platform
+type, and click the blue "Register" button.  Client ID and client secret are
+created and shown on the page.
 
-### Change Configuration on Sample Application Code
+### Change Configuration on the Application Code
 
 `jmeter_cluster.py` includes configurations as global variables.  Some of them
 must be changed to meet the environment.
@@ -264,18 +264,18 @@ must be changed to meet the environment.
 * `CLIENT_ID` and `CLIENT_SECRET`
     * Set to client ID and client secret created in the previous section.
 * `CLOUD_STORAGE`
-    * Set to Google Cloud Storage bucket name configured for this sample.
+    * Set to Google Cloud Storage bucket name configured for the application.
 * `DEFAULT_PROJECT`
     * Project ID is found on the top left corner of
       [Google Cloud Console](https://cloud.google.com/console).
 
 
-Usage of this Sample Application
+Usage of the Application
 --------------------------------
 
 #### `jmeter_cluster.py`
 
-`jmeter_cluster.py` is the main script of the sample.
+`jmeter_cluster.py` is the main script of the application.
 It starts up Google Compute Engine instance cluster with JMeter servers,
 starts JMeter client and deletes the cluster when it's no longer needed.
 
@@ -350,7 +350,7 @@ The full description of JMeter usage can be found on
 
 #### Unit tests
 
-The sample has 2 Python files, `jmeter_cluster.py` and `gce_api.py`.
+The application has 2 Python files, `jmeter_cluster.py` and `gce_api.py`.
 They have corresponding unit tests, `jmeter_cluster_test.py` and
 `gce_api_test.py` respectively.
 

@@ -21,8 +21,6 @@ import argparse
 import os
 import unittest
 
-import apiclient
-import apiclient.errors
 
 import mock
 
@@ -39,6 +37,8 @@ class JMeterClusterTest(unittest.TestCase):
     self.mock_gce_api = self.mock_gce_api_constructor.return_value
     self.mock_set_port_forward = mock.patch(
         'jmeter_cluster.JMeterCluster.SetPortForward').start()
+    self.mock_subprocess_call = mock.patch(
+        'subprocess.call', return_value=0).start()
 
   def tearDown(self):
     mock.patch.stopall()
@@ -51,32 +51,37 @@ class JMeterClusterTest(unittest.TestCase):
     cluster.Start()
 
     self.assertEqual(1, self.mock_gce_api_constructor.call_count)
-    self.assertEqual(3, self.mock_gce_api.CreateInstance.call_count)
-    self.assertEqual('foo-000',
-                      self.mock_gce_api.CreateInstance.call_args_list[0][0][0])
-    self.assertEqual('foo-001',
-                      self.mock_gce_api.CreateInstance.call_args_list[1][0][0])
-    self.assertEqual('foo-002',
-                      self.mock_gce_api.CreateInstance.call_args_list[2][0][0])
+    self.assertEqual(
+        3, self.mock_gce_api.CreateInstanceWithNewBootDisk.call_count)
+    self.assertEqual(
+        'foo-000',
+        self.mock_gce_api.CreateInstanceWithNewBootDisk.call_args_list[0][0][0])
+    self.assertEqual(
+        'foo-001',
+        self.mock_gce_api.CreateInstanceWithNewBootDisk.call_args_list[1][0][0])
+    self.assertEqual(
+        'foo-002',
+        self.mock_gce_api.CreateInstanceWithNewBootDisk.call_args_list[2][0][0])
     self.assertEqual(3, self.mock_gce_api.GetInstance.call_count)
+    self.assertEqual(3, self.mock_subprocess_call.call_count)
 
   def testShutdown(self):
-    # Raising HttpError indicates the instance does not exist any more.
-    self.mock_gce_api.GetInstance.side_effect = apiclient.errors.HttpError(
-        '', '')
-    # Make this list of list, so that the content can be overwritten from the
-    # nested function.
-    instance_list = [[
-        {'name': 'bar-000'},
-        {'name': 'bar-001'},
-        {'name': 'bar-002'},
-        {'name': 'bar-003'},
-        {'name': 'bar-004'}]]
-    def GetInstanceList(_):
-      tmp = instance_list[0]
-      instance_list[0] = []
-      return tmp
-    self.mock_gce_api.ListInstances.side_effect = GetInstanceList
+    instance_list = [
+        [
+            {'name': 'bar-000'},
+            {'name': 'bar-001'},
+            {'name': 'bar-002'},
+            {'name': 'bar-003'},
+            {'name': 'bar-004'}
+        ],
+        []
+    ]
+    self.mock_gce_api.ListInstances.side_effect = instance_list
+    self.mock_gce_api.ListDisks.side_effect = instance_list
+    # Return value of None indicates the resource (instance or disk) doesn't
+    # exist.
+    self.mock_gce_api.GetInstance.return_value = None
+    self.mock_gce_api.GetDisk.return_value = None
 
     param = argparse.Namespace(prefix='bar')
     cluster = JMeterCluster(param)
@@ -87,15 +92,26 @@ class JMeterClusterTest(unittest.TestCase):
     self.mock_gce_api.ListInstances.assert_called_with('name eq ^bar-.*')
     self.assertEqual(5, self.mock_gce_api.DeleteInstance.call_count)
     self.assertEqual('bar-000',
-                      self.mock_gce_api.DeleteInstance.call_args_list[0][0][0])
+                     self.mock_gce_api.DeleteInstance.call_args_list[0][0][0])
     self.assertEqual('bar-001',
-                      self.mock_gce_api.DeleteInstance.call_args_list[1][0][0])
+                     self.mock_gce_api.DeleteInstance.call_args_list[1][0][0])
     self.assertEqual('bar-002',
-                      self.mock_gce_api.DeleteInstance.call_args_list[2][0][0])
+                     self.mock_gce_api.DeleteInstance.call_args_list[2][0][0])
     self.assertEqual('bar-003',
-                      self.mock_gce_api.DeleteInstance.call_args_list[3][0][0])
+                     self.mock_gce_api.DeleteInstance.call_args_list[3][0][0])
     self.assertEqual('bar-004',
-                      self.mock_gce_api.DeleteInstance.call_args_list[4][0][0])
+                     self.mock_gce_api.DeleteInstance.call_args_list[4][0][0])
+    self.assertEqual(5, self.mock_gce_api.DeleteDisk.call_count)
+    self.assertEqual('bar-000',
+                     self.mock_gce_api.DeleteDisk.call_args_list[0][0][0])
+    self.assertEqual('bar-001',
+                     self.mock_gce_api.DeleteDisk.call_args_list[1][0][0])
+    self.assertEqual('bar-002',
+                     self.mock_gce_api.DeleteDisk.call_args_list[2][0][0])
+    self.assertEqual('bar-003',
+                     self.mock_gce_api.DeleteDisk.call_args_list[3][0][0])
+    self.assertEqual('bar-004',
+                     self.mock_gce_api.DeleteDisk.call_args_list[4][0][0])
 
 
 class JMeterClusterExecuterTest(unittest.TestCase):

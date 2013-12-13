@@ -11,8 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
---- apache-jmeter-2.8/bin/jmeter.properties	2012-10-02 13:29:39.000000000 -0700
-+++ jmeter-config/server/jmeter.properties	2013-05-19 20:17:20.000000000 -0700
+diff -rU3 apache-jmeter-2.9/bin/jmeter.properties apache-jmeter-2.9-server/bin/jmeter.properties
+--- apache-jmeter-2.9/bin/jmeter.properties	2013-01-24 03:21:37.000000000 -0800
++++ apache-jmeter-2.9-server/bin/jmeter.properties	2013-11-20 13:30:53.000000000 -0800
 @@ -160,7 +160,7 @@
  #remote_hosts=localhost:1099,localhost:2010
 
