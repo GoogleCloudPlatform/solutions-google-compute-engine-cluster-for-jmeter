@@ -19,11 +19,8 @@ CLOUD_STORAGE=%s
 JMETER_DIR=apache-jmeter-*-server
 
 # Set up Open JDK
-mkdir -p jre
-JRE_HEADLESS=openjdk-6-jre-headless_*.deb
-JRE_LIB=openjdk-6-jre-lib_*.deb
-gsutil -m cp $CLOUD_STORAGE/$JRE_HEADLESS $CLOUD_STORAGE/$JRE_LIB jre
-dpkg -i --force-depends jre/*.deb
+apt-get update
+apt-get install -y openjdk-7-jre
 
 # Download JMeter server package
 gsutil cp $CLOUD_STORAGE/$JMETER_DIR.tar.gz .
@@ -31,7 +28,7 @@ tar zxf $JMETER_DIR.tar.gz
 cd $JMETER_DIR
 
 # Get this server's ID from Compute Engine metadata.
-ID=$(curl http://metadata/computeMetadata/v1beta1/instance/attributes/id)
+ID=$(curl -H "X-Google-Metadata-Request: True" http://metadata/computeMetadata/v1/instance/attributes/id)
 
 perl -pi -e "s/{{SERVER_PORT}}/24000+$ID/e" bin/jmeter.properties
 perl -pi -e "s/{{SERVER_RMI_PORT}}/26000+$ID/e" bin/jmeter.properties
